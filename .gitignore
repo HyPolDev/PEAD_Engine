@@ -1,0 +1,26 @@
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+
+# Local configuration
+.env
+
+# Local data and output files (preserve directory using placeholder if needed)
+data/filings.csv
+data/seen_filings.json
+data/*.csv
+data/*.json
+
+# IDE / System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
