@@ -5,11 +5,15 @@ import { AppConfig, FilingEntry } from '../src/types';
 import { SECClient } from '../src/sec-client';
 import { FeedParser } from '../src/feed-parser';
 import { TickerMapper } from '../src/ticker-mapper';
+import { FMPClient } from '../src/fmp-client';
+import { LLMEvaluator } from '../src/llm-evaluator';
 
-// Mock the SEC client, parser, and ticker-mapper modules
+// Mock all internal dependency clients/parsers
 jest.mock('../src/sec-client');
 jest.mock('../src/feed-parser');
 jest.mock('../src/ticker-mapper');
+jest.mock('../src/fmp-client');
+jest.mock('../src/llm-evaluator');
 
 describe('Poller', () => {
   const testCachePath = path.resolve(__dirname, 'test_seen_cache.json');
@@ -27,6 +31,8 @@ describe('Poller', () => {
   let mockClientInstance: jest.Mocked<SECClient>;
   let mockParserInstance: jest.Mocked<FeedParser>;
   let mockMapperInstance: jest.Mocked<TickerMapper>;
+  let mockFmpClientInstance: jest.Mocked<FMPClient>;
+  let mockLlmEvaluatorInstance: jest.Mocked<LLMEvaluator>;
 
   beforeEach(() => {
     // Reset filesystem mocks/files
@@ -37,10 +43,14 @@ describe('Poller', () => {
     mockClientInstance = new SECClient('', 0) as jest.Mocked<SECClient>;
     mockParserInstance = new FeedParser() as jest.Mocked<FeedParser>;
     mockMapperInstance = new TickerMapper() as jest.Mocked<TickerMapper>;
+    mockFmpClientInstance = new FMPClient() as jest.Mocked<FMPClient>;
+    mockLlmEvaluatorInstance = new LLMEvaluator() as jest.Mocked<LLMEvaluator>;
 
     (SECClient as jest.Mock).mockImplementation(() => mockClientInstance);
     (FeedParser as jest.Mock).mockImplementation(() => mockParserInstance);
     (TickerMapper as jest.Mock).mockImplementation(() => mockMapperInstance);
+    (FMPClient as jest.Mock).mockImplementation(() => mockFmpClientInstance);
+    (LLMEvaluator as jest.Mock).mockImplementation(() => mockLlmEvaluatorInstance);
 
     // Setup default mock implementation for getTradableInfo
     mockMapperInstance.getTradableInfo.mockImplementation((cik: string) => {
@@ -54,6 +64,21 @@ describe('Poller', () => {
         return { ticker: 'GOOGL', exchange: 'Nasdaq' };
       }
       return null; // non-tradable default
+    });
+
+    // Mock FMP and LLM calls
+    mockFmpClientInstance.getEstimateForFiling.mockResolvedValue({
+      symbol: 'AAPL',
+      date: '2026-06-30',
+      estimatedRevenueAvg: 100,
+      estimatedEpsAvg: 1.0,
+    } as any);
+
+    mockLlmEvaluatorInstance.evaluate.mockResolvedValue({
+      actual_metrics: { revenue: 110, gross_profit: 44, operating_income: 22, net_income: 12, eps: 1.2, operating_cash_flow: 15, capital_expenditures: 3, weighted_average_shares_diluted: 10000 },
+      qoe_metrics: { revenue_surprise_pct: 10, eps_surprise_pct: 20, gross_margin_pct: 0.4, gross_margin_expansion_bps: 100, operating_margin_pct: 0.2, operating_margin_expansion_bps: 100, fcf_to_net_income_ratio: 1.0, buyback_activity: { is_eps_inflated_by_buybacks: false, share_count_change_pct: 0.0 } },
+      qualitative_analysis: { red_flags: [], forward_guidance: { provided: false, revenue_guidance: 'N/A', eps_guidance: 'N/A', sentiment: 'N/A' } },
+      qoe_score: 5
     });
   });
 

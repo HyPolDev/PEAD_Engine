@@ -18,6 +18,26 @@ export interface FilingEntry {
   ticker?: string;
   /** Exchange where the stock trades (e.g. NYSE, Nasdaq) */
   exchange?: string;
+  /** Revenue Surprise Percentage compared to consensus */
+  revenueSurprisePct?: number;
+  /** EPS Surprise Percentage compared to consensus */
+  epsSurprisePct?: number;
+  /** Actual Gross Margin percentage */
+  grossMarginPct?: number;
+  /** Gross Margin Expansion/Contraction relative to expected in basis points */
+  grossMarginExpansionBps?: number;
+  /** Actual Operating Margin percentage */
+  operatingMarginPct?: number;
+  /** Operating Margin Expansion/Contraction relative to expected in basis points */
+  operatingMarginExpansionBps?: number;
+  /** Free Cash Flow divided by Net Income */
+  fcfToNetIncomeRatio?: number;
+  /** Overall Quality of Earnings score (1 to 5) */
+  qoeScore?: number;
+  /** Number of qualitative accounting/operational red flags found */
+  redFlagsCount?: number;
+  /** Forward Guidance Sentiment (POSITIVE, NEUTRAL, NEGATIVE, N/A) */
+  guidanceSentiment?: string;
   /** The timestamp when the filing was published/accepted */
   publishedAt: string;
 }

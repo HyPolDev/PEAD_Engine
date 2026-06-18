@@ -4,12 +4,16 @@ import { AppConfig, FilingEntry } from './types';
 import { SECClient } from './sec-client';
 import { FeedParser } from './feed-parser';
 import { TickerMapper } from './ticker-mapper';
+import { FMPClient } from './fmp-client';
+import { LLMEvaluator } from './llm-evaluator';
 
 export class Poller extends EventEmitter {
   private config: AppConfig;
   private client: SECClient;
   private parser: FeedParser;
   private tickerMapper: TickerMapper;
+  private fmpClient: FMPClient;
+  private llmEvaluator: LLMEvaluator;
   private seenIds: Set<string> = new Set();
   private timer: NodeJS.Timeout | null = null;
   private isRunning = false;
@@ -21,6 +25,8 @@ export class Poller extends EventEmitter {
     this.client = new SECClient(config.secUserAgent);
     this.parser = new FeedParser();
     this.tickerMapper = tickerMapper;
+    this.fmpClient = new FMPClient();
+    this.llmEvaluator = new LLMEvaluator();
     this.loadCache();
   }
 
@@ -125,6 +131,37 @@ export class Poller extends EventEmitter {
           if (tradeInfo) {
             filing.ticker = tradeInfo.ticker;
             filing.exchange = tradeInfo.exchange;
+
+            try {
+              // 1. Fetch raw HTML filing document
+              console.log(`[Poller] Downloading raw filing HTML for: ${tradeInfo.ticker}`);
+              const rawHtml = await this.client.fetchFeed(filing.link);
+
+              // 2. Fetch pre-event consensus expectations from FMP
+              console.log(`[Poller] Fetching baseline expectations from FMP for: ${tradeInfo.ticker}`);
+              const estimate = await this.fmpClient.getEstimateForFiling(tradeInfo.ticker, filing.publishedAt);
+
+              // 3. Call LLM Evaluator for structural QoE analysis
+              const llmResult = await this.llmEvaluator.evaluate(tradeInfo.ticker, rawHtml, estimate);
+
+              // 4. Enrich filing with QoE and qualitative metrics
+              filing.revenueSurprisePct = llmResult.qoe_metrics.revenue_surprise_pct;
+              filing.epsSurprisePct = llmResult.qoe_metrics.eps_surprise_pct;
+              filing.grossMarginPct = llmResult.qoe_metrics.gross_margin_pct;
+              filing.grossMarginExpansionBps = llmResult.qoe_metrics.gross_margin_expansion_bps;
+              filing.operatingMarginPct = llmResult.qoe_metrics.operating_margin_pct;
+              filing.operatingMarginExpansionBps = llmResult.qoe_metrics.operating_margin_expansion_bps;
+              filing.fcfToNetIncomeRatio = llmResult.qoe_metrics.fcf_to_net_income_ratio;
+              filing.qoeScore = llmResult.qoe_score;
+              filing.redFlagsCount = llmResult.qualitative_analysis.red_flags.length;
+              filing.guidanceSentiment = llmResult.qualitative_analysis.forward_guidance.sentiment;
+
+              console.log(`[Poller] LLM evaluation complete for ${tradeInfo.ticker}. QoE Score: ${filing.qoeScore}/5`);
+            } catch (err: any) {
+              console.error(`[Poller] Failed to perform LLM analysis on filing ${filing.id} for ${tradeInfo.ticker}: ${err.message}`);
+              // Fallback to empty properties so we don't completely block log writing on LLM failure
+            }
+
             newFilings.push(filing);
           }
         }
