@@ -3,21 +3,24 @@ import { EventEmitter } from 'events';
 import { AppConfig, FilingEntry } from './types';
 import { SECClient } from './sec-client';
 import { FeedParser } from './feed-parser';
+import { TickerMapper } from './ticker-mapper';
 
 export class Poller extends EventEmitter {
   private config: AppConfig;
   private client: SECClient;
   private parser: FeedParser;
+  private tickerMapper: TickerMapper;
   private seenIds: Set<string> = new Set();
   private timer: NodeJS.Timeout | null = null;
   private isRunning = false;
   private isPolling = false;
 
-  constructor(config: AppConfig) {
+  constructor(config: AppConfig, tickerMapper: TickerMapper) {
     super();
     this.config = config;
     this.client = new SECClient(config.secUserAgent);
     this.parser = new FeedParser();
+    this.tickerMapper = tickerMapper;
     this.loadCache();
   }
 
@@ -118,7 +121,12 @@ export class Poller extends EventEmitter {
         );
 
         if (isTargetForm) {
-          newFilings.push(filing);
+          const tradeInfo = this.tickerMapper.getTradableInfo(filing.cik);
+          if (tradeInfo) {
+            filing.ticker = tradeInfo.ticker;
+            filing.exchange = tradeInfo.exchange;
+            newFilings.push(filing);
+          }
         }
       }
 

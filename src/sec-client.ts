@@ -54,8 +54,9 @@ export class SECClient {
 
     try {
       console.log(`[SECClient] Fetching feed from: ${url}`);
-      const response = await this.axiosInstance.get<string>(url);
-      return response.data;
+      const response = await this.axiosInstance.get(url);
+      const data = response.data;
+      return typeof data === 'string' ? data : JSON.stringify(data);
     } catch (error: any) {
       if (error.response) {
         // The request was made and the server responded with a status code outside the 2xx range

@@ -14,6 +14,10 @@ export interface FilingEntry {
   companyName: string;
   /** Extracted 10-digit Central Index Key (CIK) */
   cik: string;
+  /** Extracted ticker symbol (e.g. AAPL) */
+  ticker?: string;
+  /** Exchange where the stock trades (e.g. NYSE, Nasdaq) */
+  exchange?: string;
   /** The timestamp when the filing was published/accepted */
   publishedAt: string;
 }

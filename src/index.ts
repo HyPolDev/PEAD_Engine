@@ -1,6 +1,7 @@
 import { config } from './config';
 import { Poller } from './poller';
 import { CSVLogger } from './csv-logger';
+import { TickerMapper } from './ticker-mapper';
 
 async function main() {
   console.log('===================================================');
@@ -14,8 +15,12 @@ async function main() {
   console.log(`User-Agent:          ${config.secUserAgent}`);
   console.log('---------------------------------------------------');
 
+  console.log('[Main] Loading Ticker-to-Exchange mappings...');
+  const tickerMapper = new TickerMapper();
+  await tickerMapper.initialize();
+
   const csvLogger = new CSVLogger(config.csvPath);
-  const poller = new Poller(config);
+  const poller = new Poller(config, tickerMapper);
 
   // Wire up the event emitter to the CSV logger
   poller.on('filings', async (newFilings) => {

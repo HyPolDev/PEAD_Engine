@@ -4,10 +4,12 @@ import { Poller } from '../src/poller';
 import { AppConfig, FilingEntry } from '../src/types';
 import { SECClient } from '../src/sec-client';
 import { FeedParser } from '../src/feed-parser';
+import { TickerMapper } from '../src/ticker-mapper';
 
-// Mock the SEC client and parser modules
+// Mock the SEC client, parser, and ticker-mapper modules
 jest.mock('../src/sec-client');
 jest.mock('../src/feed-parser');
+jest.mock('../src/ticker-mapper');
 
 describe('Poller', () => {
   const testCachePath = path.resolve(__dirname, 'test_seen_cache.json');
@@ -24,6 +26,7 @@ describe('Poller', () => {
 
   let mockClientInstance: jest.Mocked<SECClient>;
   let mockParserInstance: jest.Mocked<FeedParser>;
+  let mockMapperInstance: jest.Mocked<TickerMapper>;
 
   beforeEach(() => {
     // Reset filesystem mocks/files
@@ -33,9 +36,25 @@ describe('Poller', () => {
 
     mockClientInstance = new SECClient('', 0) as jest.Mocked<SECClient>;
     mockParserInstance = new FeedParser() as jest.Mocked<FeedParser>;
+    mockMapperInstance = new TickerMapper() as jest.Mocked<TickerMapper>;
 
     (SECClient as jest.Mock).mockImplementation(() => mockClientInstance);
     (FeedParser as jest.Mock).mockImplementation(() => mockParserInstance);
+    (TickerMapper as jest.Mock).mockImplementation(() => mockMapperInstance);
+
+    // Setup default mock implementation for getTradableInfo
+    mockMapperInstance.getTradableInfo.mockImplementation((cik: string) => {
+      if (cik === '0000320193' || cik === '320193') {
+        return { ticker: 'AAPL', exchange: 'Nasdaq' };
+      }
+      if (cik === '0000789019' || cik === '789019') {
+        return { ticker: 'MSFT', exchange: 'Nasdaq' };
+      }
+      if (cik === '0001652044' || cik === '1652044') {
+        return { ticker: 'GOOGL', exchange: 'Nasdaq' };
+      }
+      return null; // non-tradable default
+    });
   });
 
   afterEach(() => {
@@ -45,7 +64,7 @@ describe('Poller', () => {
   });
 
   it('should pull, parse, filter, and emit new filings', async () => {
-    const poller = new Poller(mockConfig);
+    const poller = new Poller(mockConfig, mockMapperInstance);
 
     const mockXml = '<feed>mock</feed>';
     mockClientInstance.fetchFeed.mockResolvedValue(mockXml);
@@ -77,6 +96,15 @@ describe('Poller', () => {
         companyName: 'Microsoft Corp.',
         cik: '0000789019',
         publishedAt: '2026-06-16T12:02:00Z',
+      },
+      {
+        id: '5555',
+        title: '8-K - Non Tradable Corp.',
+        link: 'https://sec.gov/5555',
+        formType: '8-K',
+        companyName: 'Non Tradable Corp.',
+        cik: '0000000000', // Non-tradable CIK
+        publishedAt: '2026-06-16T12:03:00Z',
       },
     ];
 
@@ -112,7 +140,7 @@ describe('Poller', () => {
     // Write pre-existing cache file
     fs.writeFileSync(testCachePath, JSON.stringify(['1111']), 'utf8');
 
-    const poller = new Poller(mockConfig);
+    const poller = new Poller(mockConfig, mockMapperInstance);
 
     mockClientInstance.fetchFeed.mockResolvedValue('<feed></feed>');
     const parsedMockEntries: FilingEntry[] = [

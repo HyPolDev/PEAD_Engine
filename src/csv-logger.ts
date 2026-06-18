@@ -4,7 +4,7 @@ import { FilingEntry } from './types';
 /**
  * Escapes a string value to be RFC 4180 compliant for CSV files.
  */
-function escapeCSV(val: string): string {
+function escapeCSV(val: string | undefined): string {
   if (val === undefined || val === null) {
     return '';
   }
@@ -24,6 +24,8 @@ export class CSVLogger {
   private headers = [
     'AccessionNumber',
     'CIK',
+    'Ticker',
+    'Exchange',
     'CompanyName',
     'FormType',
     'FilingDate',
@@ -56,6 +58,8 @@ export class CSVLogger {
     const row = [
       entry.id,
       entry.cik,
+      entry.ticker,
+      entry.exchange,
       entry.companyName,
       entry.formType,
       entry.publishedAt,
@@ -82,6 +86,8 @@ export class CSVLogger {
       const row = [
         entry.id,
         entry.cik,
+        entry.ticker,
+        entry.exchange,
         entry.companyName,
         entry.formType,
         entry.publishedAt,
