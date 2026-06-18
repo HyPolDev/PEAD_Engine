@@ -1,7 +1,8 @@
 import { config } from './config';
 import { Poller } from './poller';
-import { CSVLogger } from './csv-logger';
 import { TickerMapper } from './ticker-mapper';
+import { initDatabase } from './db';
+import { DBLogger } from './db-logger';
 
 async function main() {
   console.log('===================================================');
@@ -10,24 +11,25 @@ async function main() {
   console.log(`Configured Forms:    ${config.formTypes.join(', ')}`);
   console.log(`Polling Feed URL:    ${config.secFeedUrl}`);
   console.log(`Polling Interval:    ${config.pollIntervalMs} ms`);
-  console.log(`Output CSV Path:     ${config.csvPath}`);
-  console.log(`Seen Cache Path:     ${config.seenCachePath}`);
   console.log(`User-Agent:          ${config.secUserAgent}`);
   console.log('---------------------------------------------------');
+
+  console.log('[Main] Initializing database...');
+  await initDatabase();
 
   console.log('[Main] Loading Ticker-to-Exchange mappings...');
   const tickerMapper = new TickerMapper();
   await tickerMapper.initialize();
 
-  const csvLogger = new CSVLogger(config.csvPath);
+  const dbLogger = new DBLogger();
   const poller = new Poller(config, tickerMapper);
 
-  // Wire up the event emitter to the CSV logger
+  // Wire up the event emitter to the database logger
   poller.on('filings', async (newFilings) => {
     try {
-      await csvLogger.logBatch(newFilings);
+      await dbLogger.logBatch(newFilings);
     } catch (err: any) {
-      console.error(`[Main] Error writing to CSV file: ${err.message}`);
+      console.error(`[Main] Error writing to database: ${err.message}`);
     }
   });
 

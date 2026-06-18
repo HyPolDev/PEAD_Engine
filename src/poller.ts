@@ -155,6 +155,15 @@ export class Poller extends EventEmitter {
               filing.qoeScore = llmResult.qoe_score;
               filing.redFlagsCount = llmResult.qualitative_analysis.red_flags.length;
               filing.guidanceSentiment = llmResult.qualitative_analysis.forward_guidance.sentiment;
+              
+              // Detailed relational entities
+              filing.redFlags = llmResult.qualitative_analysis.red_flags;
+              filing.guidance = {
+                provided: llmResult.qualitative_analysis.forward_guidance.provided,
+                revenueGuidance: llmResult.qualitative_analysis.forward_guidance.revenue_guidance,
+                epsGuidance: llmResult.qualitative_analysis.forward_guidance.eps_guidance,
+                sentiment: llmResult.qualitative_analysis.forward_guidance.sentiment,
+              };
 
               console.log(`[Poller] LLM evaluation complete for ${tradeInfo.ticker}. QoE Score: ${filing.qoeScore}/5`);
             } catch (err: any) {

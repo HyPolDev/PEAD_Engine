@@ -38,6 +38,19 @@ export interface FilingEntry {
   redFlagsCount?: number;
   /** Forward Guidance Sentiment (POSITIVE, NEUTRAL, NEGATIVE, N/A) */
   guidanceSentiment?: string;
+  /** Detailed qualitative red flags extracted from the filing */
+  redFlags?: Array<{
+    category: string;
+    finding: string;
+    severity: string;
+  }>;
+  /** Detailed forward guidance information */
+  guidance?: {
+    provided: boolean;
+    revenueGuidance: string;
+    epsGuidance: string;
+    sentiment: string;
+  };
   /** The timestamp when the filing was published/accepted */
   publishedAt: string;
 }
