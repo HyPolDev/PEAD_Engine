@@ -39,6 +39,7 @@ export interface LLMAnalysisResult {
     };
   };
   qoe_score: number;
+  expectation_classification: 'highly beats expectations' | 'more or less meets expectations' | 'falls way short';
 }
 
 /**
@@ -94,10 +95,10 @@ export class LLMEvaluator {
     const truncatedText = cleanedText.slice(0, 300000);
 
     const baselineInfo = estimate
-      ? `Consensus Revenue Estimate: ${estimate.estimatedRevenueAvg}
-Consensus EPS Estimate: ${estimate.estimatedEpsAvg}
-Consensus EBITDA Estimate: ${estimate.estimatedEbitdaAvg}
-Consensus SG&A Expense Estimate: ${estimate.estimatedSgaExpenseAvg}`
+      ? `Consensus Revenue Estimate: ${estimate.revenueAvg}
+Consensus EPS Estimate: ${estimate.epsAvg}
+Consensus EBITDA Estimate: ${estimate.ebitdaAvg}
+Consensus SG&A Expense Estimate: ${estimate.sgaExpenseAvg}`
       : 'Consensus estimates are not available for this period.';
 
     const systemPrompt = `You are an expert financial analyst. Your task is to analyze the provided SEC filing text for ${symbol} and extract the actual reported numbers, calculate Quality of Earnings (QoE) surprise metrics compared to the consensus expectations baseline, and perform a qualitative assessment of the MD&A.
@@ -109,7 +110,8 @@ Instructions:
 1. Extract the actual values for Revenue, Gross Profit, Operating Income, Net Income, EPS, Operating Cash Flow, CapEx, and Diluted Shares Outstanding from the financial tables.
 2. Calculate the QoE margins and expansion basis points (relative to the baseline if expectations are available, otherwise set to 0).
 3. Search the MD&A and footnotes for qualitative red flags (such as inventory buildup faster than revenue, receivables stretching, one-time gains, reclassifications, or guidance changes).
-4. Output your analysis in a strict JSON format matching the schema provided.`;
+4. Classify the overall performance against expectations into one of three tiers: 'highly beats expectations', 'more or less meets expectations', or 'falls way short'. Be critical: if EPS beat expectations but it was achieved by reducing gross/operating margins, inflating via buybacks (share reduction), or one-time gains, you must classify it as 'falls way short' or 'more or less meets expectations'.
+5. Output your analysis in a strict JSON format matching the schema provided.`;
 
     const jsonSchema = {
       type: 'object',
@@ -223,9 +225,14 @@ Instructions:
           minimum: 1,
           maximum: 5,
           description: 'Overall Quality of Earnings score from 1 (low quality/manipulated/poor cash) to 5 (clean beat/expanding margins/high FCF conversion).'
+        },
+        expectation_classification: {
+          type: 'string',
+          enum: ['highly beats expectations', 'more or less meets expectations', 'falls way short'],
+          description: 'Overall classification of how the filing compared to baseline consensus expectations.'
         }
       },
-      required: ['actual_metrics', 'qoe_metrics', 'qualitative_analysis', 'qoe_score'],
+      required: ['actual_metrics', 'qoe_metrics', 'qualitative_analysis', 'qoe_score', 'expectation_classification'],
       additionalProperties: false
     };
 

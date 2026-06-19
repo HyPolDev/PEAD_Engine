@@ -70,15 +70,16 @@ describe('Poller', () => {
     mockFmpClientInstance.getEstimateForFiling.mockResolvedValue({
       symbol: 'AAPL',
       date: '2026-06-30',
-      estimatedRevenueAvg: 100,
-      estimatedEpsAvg: 1.0,
+      revenueAvg: 100,
+      epsAvg: 1.0,
     } as any);
 
     mockLlmEvaluatorInstance.evaluate.mockResolvedValue({
       actual_metrics: { revenue: 110, gross_profit: 44, operating_income: 22, net_income: 12, eps: 1.2, operating_cash_flow: 15, capital_expenditures: 3, weighted_average_shares_diluted: 10000 },
       qoe_metrics: { revenue_surprise_pct: 10, eps_surprise_pct: 20, gross_margin_pct: 0.4, gross_margin_expansion_bps: 100, operating_margin_pct: 0.2, operating_margin_expansion_bps: 100, fcf_to_net_income_ratio: 1.0, buyback_activity: { is_eps_inflated_by_buybacks: false, share_count_change_pct: 0.0 } },
       qualitative_analysis: { red_flags: [], forward_guidance: { provided: false, revenue_guidance: 'N/A', eps_guidance: 'N/A', sentiment: 'N/A' } },
-      qoe_score: 5
+      qoe_score: 5,
+      expectation_classification: 'highly beats expectations'
     });
   });
 

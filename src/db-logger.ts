@@ -25,9 +25,10 @@ export class DBLogger {
         INSERT INTO filings (
           accession_number, company_cik, form_type, filing_date, filing_url,
           revenue_surprise_pct, eps_surprise_pct, gross_margin_pct, gross_margin_expansion_bps,
-          operating_margin_pct, operating_margin_expansion_bps, fcf_to_net_income_ratio, qoe_score
+          operating_margin_pct, operating_margin_expansion_bps, fcf_to_net_income_ratio, qoe_score,
+          expectation_classification
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (accession_number) DO NOTHING
         RETURNING accession_number;
       `, [
@@ -44,6 +45,7 @@ export class DBLogger {
         entry.operatingMarginExpansionBps,
         entry.fcfToNetIncomeRatio,
         entry.qoeScore,
+        entry.expectationClassification || null,
       ]);
 
       // Only insert red flags and guidance if the filing was successfully inserted

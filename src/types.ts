@@ -38,6 +38,8 @@ export interface FilingEntry {
   redFlagsCount?: number;
   /** Forward Guidance Sentiment (POSITIVE, NEUTRAL, NEGATIVE, N/A) */
   guidanceSentiment?: string;
+  /** Expectation classification based on QoE and consensus metrics */
+  expectationClassification?: 'highly beats expectations' | 'more or less meets expectations' | 'falls way short';
   /** Detailed qualitative red flags extracted from the filing */
   redFlags?: Array<{
     category: string;

@@ -8,20 +8,20 @@ describe('LLMEvaluator', () => {
   const mockEstimate: AnalystEstimate = {
     symbol: 'AAPL',
     date: '2026-06-30',
-    estimatedRevenueLow: 100,
-    estimatedRevenueHigh: 110,
-    estimatedRevenueAvg: 105,
-    estimatedEpsLow: 1.0,
-    estimatedEpsHigh: 1.2,
-    estimatedEpsAvg: 1.1,
-    estimatedEbitdaLow: 40,
-    estimatedEbitdaHigh: 50,
-    estimatedEbitdaAvg: 45,
-    estimatedSgaExpenseLow: 10,
-    estimatedSgaExpenseHigh: 12,
-    estimatedSgaExpenseAvg: 11,
-    numberAnalystEstimatedRevenue: 10,
-    numberAnalystsEstimatedEps: 10,
+    revenueLow: 100,
+    revenueHigh: 110,
+    revenueAvg: 105,
+    epsLow: 1.0,
+    epsHigh: 1.2,
+    epsAvg: 1.1,
+    ebitdaLow: 40,
+    ebitdaHigh: 50,
+    ebitdaAvg: 45,
+    sgaExpenseLow: 10,
+    sgaExpenseHigh: 12,
+    sgaExpenseAvg: 11,
+    numAnalystsRevenue: 10,
+    numAnalystsEps: 10,
   };
 
   const mockLLMResponse: LLMAnalysisResult = {
@@ -64,6 +64,7 @@ describe('LLMEvaluator', () => {
       },
     },
     qoe_score: 4,
+    expectation_classification: 'more or less meets expectations',
   };
 
   beforeEach(() => {

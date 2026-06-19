@@ -43,8 +43,14 @@ export async function initDatabase(): Promise<void> {
         operating_margin_expansion_bps INTEGER,
         fcf_to_net_income_ratio DOUBLE PRECISION,
         qoe_score INTEGER,
+        expectation_classification VARCHAR(30),
         logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+
+    // Ensure the expectation_classification column exists in case the table already exists
+    await client.query(`
+      ALTER TABLE filings ADD COLUMN IF NOT EXISTS expectation_classification VARCHAR(30);
     `);
 
     // 3. Qualitative Red Flags table

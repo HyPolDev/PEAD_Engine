@@ -50,6 +50,7 @@ describe('DBLogger', () => {
       qoeScore: 5,
       redFlagsCount: 1,
       guidanceSentiment: 'POSITIVE',
+      expectationClassification: 'highly beats expectations',
       redFlags: [
         {
           category: 'INVENTORY_BUILDUP',
@@ -80,7 +81,22 @@ describe('DBLogger', () => {
     );
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO filings'),
-      expect.any(Array)
+      expect.arrayContaining([
+        '1111',
+        '0000320193',
+        '10-Q',
+        '2026-06-16T12:00:00Z',
+        'https://sec.gov/1111',
+        5.0,
+        10.0,
+        0.45,
+        150,
+        0.30,
+        100,
+        1.2,
+        5,
+        'highly beats expectations'
+      ])
     );
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO red_flags'),

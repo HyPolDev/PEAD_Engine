@@ -138,8 +138,14 @@ export class Poller extends EventEmitter {
               const rawHtml = await this.client.fetchFeed(filing.link);
 
               // 2. Fetch pre-event consensus expectations from FMP
-              console.log(`[Poller] Fetching baseline expectations from FMP for: ${tradeInfo.ticker}`);
-              const estimate = await this.fmpClient.getEstimateForFiling(tradeInfo.ticker, filing.publishedAt);
+              let estimate = null;
+              try {
+                console.log(`[Poller] Fetching baseline expectations from FMP for: ${tradeInfo.ticker}`);
+                const period = filing.formType.includes('10-K') ? 'annual' : 'quarter';
+                estimate = await this.fmpClient.getEstimateForFiling(tradeInfo.ticker, filing.publishedAt, period);
+              } catch (fmpErr: any) {
+                console.warn(`[Poller] Failed to fetch FMP expectations for ${tradeInfo.ticker} (proceeding without expectations): ${fmpErr.message}`);
+              }
 
               // 3. Call LLM Evaluator for structural QoE analysis
               const llmResult = await this.llmEvaluator.evaluate(tradeInfo.ticker, rawHtml, estimate);
@@ -155,6 +161,7 @@ export class Poller extends EventEmitter {
               filing.qoeScore = llmResult.qoe_score;
               filing.redFlagsCount = llmResult.qualitative_analysis.red_flags.length;
               filing.guidanceSentiment = llmResult.qualitative_analysis.forward_guidance.sentiment;
+              filing.expectationClassification = llmResult.expectation_classification;
               
               // Detailed relational entities
               filing.redFlags = llmResult.qualitative_analysis.red_flags;
