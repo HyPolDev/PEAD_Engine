@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { LLMEvaluator, cleanHtml, LLMAnalysisResult } from '../src/llm-evaluator';
+import { LLMEvaluator, cleanHtml, LLMAnalysisResult, extractMdaAndFinancials } from '../src/llm-evaluator';
 import { AnalystEstimate } from '../src/fmp-client';
 
 jest.mock('axios');
@@ -98,6 +98,74 @@ describe('LLMEvaluator', () => {
     });
   });
 
+  describe('extractMdaAndFinancials', () => {
+    it('should extract Item 7 to Item 9 for a 10-K filing', () => {
+      const mockText = `
+        Cover Page Information
+        Item 6. Selected Financial Data
+        Item 7. Management's Discussion and Analysis of Financial Condition
+        This is the MD&A content.
+        It contains company performance details.
+        Item 7A. Quantitative and Qualitative Disclosures
+        Item 8. Financial Statements
+        This is the financial tables content.
+        Item 9. Changes in and Disagreements with Accountants
+        This should be excluded.
+      `;
+      const extracted = extractMdaAndFinancials(mockText, '10-K');
+      expect(extracted).toContain("Item 7. Management's Discussion and Analysis");
+      expect(extracted).toContain("This is the MD&A content.");
+      expect(extracted).toContain("Item 8. Financial Statements");
+      expect(extracted).not.toContain("Item 9. Changes in and Disagreements");
+    });
+
+    it('should extract Item 1 to Item 3 for a 10-Q filing', () => {
+      const mockText = `
+        Cover Page Information
+        Item 1. Financial Statements
+        This is the Q1 financial statements.
+        Item 2. Management's Discussion and Analysis
+        This is the Q1 MD&A content.
+        Item 3. Quantitative and Qualitative Disclosures
+        This should be excluded.
+      `;
+      const extracted = extractMdaAndFinancials(mockText, '10-Q');
+      expect(extracted).toContain("Item 1. Financial Statements");
+      expect(extracted).toContain("Item 2. Management's Discussion and Analysis");
+      expect(extracted).not.toContain("Item 3. Quantitative and Qualitative");
+    });
+
+    it('should skip Table of Contents match when extracting', () => {
+      const mockTocText = `
+        PART I
+        Item 1. Business............................................... 5
+        Item 7. Management's Discussion and Analysis.................. 20
+        Item 8. Financial Statements................................... 35
+        Item 9. Changes................................................ 50
+        
+        ${'A'.repeat(30000)}
+        
+        Item 7. Management's Discussion and Analysis of Financial Condition
+        Actual MD&A body text here.
+        Item 8. Financial Statements
+        Actual Financial Statements here.
+        Item 9. Changes in and Disagreements
+        Actual changes body text here.
+      `;
+      const extracted = extractMdaAndFinancials(mockTocText, '10-K');
+      expect(extracted).toContain("Actual MD&A body text here.");
+      expect(extracted).toContain("Actual Financial Statements here.");
+      expect(extracted).not.toContain("Actual changes body text here.");
+      expect(extracted).not.toContain("Item 1. Business");
+    });
+
+    it('should fallback to default slicing if start markers are not found', () => {
+      const mockText = `This text does not contain any item markers. `.repeat(10);
+      const extracted = extractMdaAndFinancials(mockText, '10-K');
+      expect(extracted).toBe(mockText.slice(0, 300000));
+    });
+  });
+
   describe('evaluate', () => {
     it('should call OpenAI API completions with correct payload and return parsed result', async () => {
       (axios.post as jest.Mock).mockResolvedValue({
@@ -113,7 +181,7 @@ describe('LLMEvaluator', () => {
       });
 
       const evaluator = new LLMEvaluator();
-      const { result, prompt, responseRaw } = await evaluator.evaluate('AAPL', '<html>mock html</html>', mockEstimate);
+      const { result, prompt, responseRaw } = await evaluator.evaluate('AAPL', '<html>mock html</html>', mockEstimate, '10-Q');
 
       expect(axios.post).toHaveBeenCalledWith(
         'https://api.openai.com/v1/chat/completions',
