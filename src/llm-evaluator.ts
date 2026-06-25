@@ -65,6 +65,67 @@ export function cleanHtml(html: string): string {
   return text.trim();
 }
 
+/**
+ * Extracts only MD&A and Financial Statement sections based on form type (10-K or 10-Q),
+ * skipping Table of Contents matches.
+ */
+export function extractMdaAndFinancials(text: string, formType: string): string {
+  if (!text) return '';
+
+  const is10K = formType.includes('10-K');
+  const is10Q = formType.includes('10-Q');
+
+  if (!is10K && !is10Q) {
+    // Fallback for other forms (like 8-K): slice the first 300,000 characters
+    return text.slice(0, 300000);
+  }
+
+  // Regexes for start and end markers
+  const startRegex = is10K ? /\bitem\s+7\.\s+management/i : /\bitem\s+1\.\s+financial\s+statements/i;
+  const looseStartRegex = is10K ? /\bitem\s+7\b/i : /\bitem\s+1\b/i;
+
+  const endRegex = is10K ? /\bitem\s+9\.\s+(?:changes|controls|other)/i : /\bitem\s+3\.\s+(?:quantitative|controls|defaults)/i;
+  const looseEndRegex = is10K ? /\bitem\s+9\b/i : /\bitem\s+3\b/i;
+
+  // Helper to find index of match skipping Table of Contents (TOC)
+  const findMatchIndex = (regex: RegExp, looseRegex: RegExp): number => {
+    let matches = [...text.matchAll(new RegExp(regex, 'gi'))];
+    if (matches.length === 0) {
+      matches = [...text.matchAll(new RegExp(looseRegex, 'gi'))];
+    }
+    if (matches.length === 0) return -1;
+
+    // If the first match is in the first 25,000 chars (typically TOC region),
+    // and there is a second match, we prefer the second match!
+    if (matches[0].index !== undefined && matches[0].index < 25000 && matches.length > 1) {
+      return matches[1].index ?? matches[0].index;
+    }
+    return matches[0].index ?? -1;
+  };
+
+  const startIdx = findMatchIndex(startRegex, looseStartRegex);
+  if (startIdx === -1) {
+    console.warn(`[Extraction] Could not find start of MD&A/Financials for ${formType}. Falling back.`);
+    return text.slice(0, 300000);
+  }
+
+  const remainingText = text.slice(startIdx);
+  
+  // Find end index in the remaining text
+  let endMatches = [...remainingText.matchAll(new RegExp(endRegex, 'gi'))];
+  if (endMatches.length === 0) {
+    endMatches = [...remainingText.matchAll(new RegExp(looseEndRegex, 'gi'))];
+  }
+
+  if (endMatches.length > 0 && endMatches[0].index !== undefined) {
+    return remainingText.substring(0, endMatches[0].index);
+  }
+
+  // Fallback: if no end match is found, slice 300,000 characters from start
+  return remainingText.slice(0, 300000);
+}
+
+
 export class LLMEvaluator {
   private apiKey: string;
   private model: string;
@@ -84,16 +145,18 @@ export class LLMEvaluator {
   async evaluate(
     symbol: string,
     rawHtml: string,
-    estimate: AnalystEstimate | null
+    estimate: AnalystEstimate | null,
+    formType: string
   ): Promise<{ result: LLMAnalysisResult; prompt: string; responseRaw: string }> {
     if (!this.apiKey) {
       throw new Error('OPENAI_API_KEY is required to evaluate filings.');
     }
 
-    console.log(`[LLMEvaluator] Preprocessing raw HTML for: ${symbol}`);
+    console.log(`[LLMEvaluator] Preprocessing raw HTML for: ${symbol} (${formType})`);
     const cleanedText = cleanHtml(rawHtml);
+    const extractedText = extractMdaAndFinancials(cleanedText, formType);
     // Slice text to fit safely within the model context window
-    const truncatedText = cleanedText.slice(0, 300000);
+    const truncatedText = extractedText.slice(0, 300000);
 
     const baselineInfo = estimate
       ? `Consensus Revenue Estimate: ${estimate.revenueAvg}

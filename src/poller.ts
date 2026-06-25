@@ -159,7 +159,7 @@ export class Poller extends EventEmitter {
               }
 
               // 3. Call LLM Evaluator for structural QoE analysis
-              const { result: llmResult, prompt, responseRaw } = await this.llmEvaluator.evaluate(tradeInfo.ticker, rawHtml, estimate);
+              const { result: llmResult, prompt, responseRaw } = await this.llmEvaluator.evaluate(tradeInfo.ticker, rawHtml, estimate, filing.formType);
 
               // 4. Enrich filing with QoE and qualitative metrics
               filing.revenueSurprisePct = llmResult.qoe_metrics.revenue_surprise_pct;
