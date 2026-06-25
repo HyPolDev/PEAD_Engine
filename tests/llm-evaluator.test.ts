@@ -65,6 +65,7 @@ describe('LLMEvaluator', () => {
     },
     qoe_score: 4,
     expectation_classification: 'more or less meets expectations',
+    personal_evaluation: 'Strong company with minor inventory buildup risk.',
   };
 
   beforeEach(() => {
@@ -112,7 +113,7 @@ describe('LLMEvaluator', () => {
       });
 
       const evaluator = new LLMEvaluator();
-      const result = await evaluator.evaluate('AAPL', '<html>mock html</html>', mockEstimate);
+      const { result, prompt, responseRaw } = await evaluator.evaluate('AAPL', '<html>mock html</html>', mockEstimate);
 
       expect(axios.post).toHaveBeenCalledWith(
         'https://api.openai.com/v1/chat/completions',
@@ -129,6 +130,8 @@ describe('LLMEvaluator', () => {
       );
 
       expect(result).toEqual(mockLLMResponse);
+      expect(prompt).toBeDefined();
+      expect(responseRaw).toBe(JSON.stringify(mockLLMResponse));
     });
   });
 });

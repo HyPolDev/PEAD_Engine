@@ -1,4 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
+import * as http from 'http';
+import * as https from 'https';
 
 /**
  * A rate-limiting utility to ensure we stay well below the SEC's limit of 10 requests per second.
@@ -42,6 +44,8 @@ export class SECClient {
         'User-Agent': userAgent,
         'Accept-Encoding': 'gzip, deflate', // SEC prefers compressed payloads
       },
+      httpAgent: new http.Agent({ keepAlive: true }),
+      httpsAgent: new https.Agent({ keepAlive: true }),
     });
   }
 

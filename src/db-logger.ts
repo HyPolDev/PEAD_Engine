@@ -75,6 +75,19 @@ export class DBLogger {
             entry.guidance.sentiment,
           ]);
         }
+
+        // 5. Insert LLM evaluations (prompts/responses)
+        if (entry.llmPrompt && entry.llmResponse && entry.personalEvaluation) {
+          await client.query(`
+            INSERT INTO llm_evaluations (filing_accession_number, prompt, response, personal_evaluation)
+            VALUES ($1, $2, $3, $4);
+          `, [
+            accessionNumber,
+            entry.llmPrompt,
+            entry.llmResponse,
+            entry.personalEvaluation,
+          ]);
+        }
       }
 
       await client.query('COMMIT');

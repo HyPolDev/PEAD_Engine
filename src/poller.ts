@@ -6,6 +6,7 @@ import { FeedParser } from './feed-parser';
 import { TickerMapper } from './ticker-mapper';
 import { FMPClient } from './fmp-client';
 import { LLMEvaluator } from './llm-evaluator';
+import * as cheerio from 'cheerio';
 
 export class Poller extends EventEmitter {
   private config: AppConfig;
@@ -133,9 +134,19 @@ export class Poller extends EventEmitter {
             filing.exchange = tradeInfo.exchange;
 
             try {
-              // 1. Fetch raw HTML filing document
-              console.log(`[Poller] Downloading raw filing HTML for: ${tradeInfo.ticker}`);
-              const rawHtml = await this.client.fetchFeed(filing.link);
+              // 1. Fetch raw landing page HTML and resolve true main filing URL
+              console.log(`[Poller] Downloading landing page HTML for: ${tradeInfo.ticker}`);
+              const landingHtml = await this.client.fetchFeed(filing.link);
+              
+              let rawHtml = landingHtml;
+              const mainUrl = this.getMainFilingUrl(landingHtml, filing.formType);
+              if (mainUrl) {
+                console.log(`[Poller] Resolved main filing URL: ${mainUrl}. Downloading main filing HTML.`);
+                rawHtml = await this.client.fetchFeed(mainUrl);
+                filing.link = mainUrl; // Update link to direct document URL for logging
+              } else {
+                console.warn(`[Poller] Could not resolve main filing URL for ${tradeInfo.ticker} (${filing.formType}). Using landing page as fallback.`);
+              }
 
               // 2. Fetch pre-event consensus expectations from FMP
               let estimate = null;
@@ -148,7 +159,7 @@ export class Poller extends EventEmitter {
               }
 
               // 3. Call LLM Evaluator for structural QoE analysis
-              const llmResult = await this.llmEvaluator.evaluate(tradeInfo.ticker, rawHtml, estimate);
+              const { result: llmResult, prompt, responseRaw } = await this.llmEvaluator.evaluate(tradeInfo.ticker, rawHtml, estimate);
 
               // 4. Enrich filing with QoE and qualitative metrics
               filing.revenueSurprisePct = llmResult.qoe_metrics.revenue_surprise_pct;
@@ -162,6 +173,9 @@ export class Poller extends EventEmitter {
               filing.redFlagsCount = llmResult.qualitative_analysis.red_flags.length;
               filing.guidanceSentiment = llmResult.qualitative_analysis.forward_guidance.sentiment;
               filing.expectationClassification = llmResult.expectation_classification;
+              filing.personalEvaluation = llmResult.personal_evaluation;
+              filing.llmPrompt = prompt;
+              filing.llmResponse = responseRaw;
               
               // Detailed relational entities
               filing.redFlags = llmResult.qualitative_analysis.red_flags;
@@ -205,5 +219,77 @@ export class Poller extends EventEmitter {
     } finally {
       this.isPolling = false;
     }
+  }
+
+  /**
+   * Parses the SEC EDGAR index HTML to extract the true filing document URL using Cheerio DOM selectors.
+   */
+  private getMainFilingUrl(html: string, targetForm: string): string | null {
+    try {
+      const $ = cheerio.load(html);
+      let resolvedUrl: string | null = null;
+      
+      const targetFormLower = targetForm.toLowerCase();
+      const baseFormLower = targetForm.split('/')[0].toLowerCase();
+
+      // Find all rows in the table with class 'tableFile'
+      // Standard SEC EDGAR files list is formatted in a <table class="tableFile">
+      const rows = $('table.tableFile tr');
+      
+      rows.each((_, row) => {
+        if (resolvedUrl) return; // Break if already found
+        
+        const cols = $(row).find('td');
+        if (cols.length < 4) return; // Need at least 4 columns (type is index 3)
+
+        // Type column (typically index 3)
+        const typeText = $(cols[3]).text().trim().toLowerCase();
+        
+        // Check if the cell type text matches target form or its base form (e.g. 10-K or 10-K/A)
+        const isMatch = typeText === targetFormLower || 
+                        typeText === `form ${targetFormLower}` ||
+                        typeText === baseFormLower ||
+                        typeText === `form ${baseFormLower}`;
+
+        if (isMatch) {
+          // Document link column (typically index 2) contains the anchor
+          const linkElement = $(cols[2]).find('a');
+          const href = linkElement.attr('href');
+          if (href) {
+            resolvedUrl = href;
+          }
+        }
+      });
+
+      // Fallback: If no exact form match was found, grab the first file in the table ending in .htm or .html
+      if (!resolvedUrl) {
+        rows.each((_, row) => {
+          if (resolvedUrl) return;
+          const cols = $(row).find('td');
+          if (cols.length < 3) return; // Anchor link is in index 2
+
+          const linkElement = $(cols[2]).find('a');
+          const href = linkElement.attr('href');
+          if (href && (href.toLowerCase().endsWith('.htm') || href.toLowerCase().endsWith('.html'))) {
+            resolvedUrl = href;
+          }
+        });
+      }
+
+      if (resolvedUrl) {
+        let url = resolvedUrl as string;
+        // Strip the iXBRL viewer prefix if present
+        if (url.includes('ix?doc=')) {
+          url = url.split('ix?doc=').pop() || url;
+        }
+        if (url.startsWith('/')) {
+          url = 'https://www.sec.gov' + url;
+        }
+        return url;
+      }
+    } catch (err: any) {
+      console.error(`[Poller] Cheerio parsing failed: ${err.message}`);
+    }
+    return null;
   }
 }

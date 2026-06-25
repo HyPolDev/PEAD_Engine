@@ -76,6 +76,18 @@ export async function initDatabase(): Promise<void> {
       );
     `);
 
+    // 5. LLM Evaluations table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS llm_evaluations (
+        id SERIAL PRIMARY KEY,
+        filing_accession_number VARCHAR(50) REFERENCES filings(accession_number) ON DELETE CASCADE,
+        prompt TEXT NOT NULL,
+        response TEXT NOT NULL,
+        personal_evaluation TEXT NOT NULL,
+        logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     await client.query('COMMIT');
     console.log('[DB] Database schema is initialized and verified.');
   } catch (error: any) {

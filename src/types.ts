@@ -53,6 +53,12 @@ export interface FilingEntry {
     epsGuidance: string;
     sentiment: string;
   };
+  /** The qualitative personal evaluation of the LLM */
+  personalEvaluation?: string;
+  /** The full prompt sent to the LLM */
+  llmPrompt?: string;
+  /** The full raw response from the LLM */
+  llmResponse?: string;
   /** The timestamp when the filing was published/accepted */
   publishedAt: string;
 }

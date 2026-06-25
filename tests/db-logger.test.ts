@@ -64,6 +64,9 @@ describe('DBLogger', () => {
         epsGuidance: 'N/A',
         sentiment: 'POSITIVE',
       },
+      personalEvaluation: 'Strong performance meets expectations',
+      llmPrompt: 'test-prompt',
+      llmResponse: 'test-response',
       publishedAt: '2026-06-16T12:00:00Z',
     };
 
@@ -105,6 +108,10 @@ describe('DBLogger', () => {
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO guidance'),
       expect.arrayContaining(['1111', true, 'Strong outlook', 'N/A', 'POSITIVE'])
+    );
+    expect(mockClient.query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO llm_evaluations'),
+      expect.arrayContaining(['1111', 'test-prompt', 'test-response', 'Strong performance meets expectations'])
     );
   });
 });

@@ -40,6 +40,7 @@ export interface LLMAnalysisResult {
   };
   qoe_score: number;
   expectation_classification: 'highly beats expectations' | 'more or less meets expectations' | 'falls way short';
+  personal_evaluation: string;
 }
 
 /**
@@ -84,7 +85,7 @@ export class LLMEvaluator {
     symbol: string,
     rawHtml: string,
     estimate: AnalystEstimate | null
-  ): Promise<LLMAnalysisResult> {
+  ): Promise<{ result: LLMAnalysisResult; prompt: string; responseRaw: string }> {
     if (!this.apiKey) {
       throw new Error('OPENAI_API_KEY is required to evaluate filings.');
     }
@@ -111,7 +112,8 @@ Instructions:
 2. Calculate the QoE margins and expansion basis points (relative to the baseline if expectations are available, otherwise set to 0).
 3. Search the MD&A and footnotes for qualitative red flags (such as inventory buildup faster than revenue, receivables stretching, one-time gains, reclassifications, or guidance changes).
 4. Classify the overall performance against expectations into one of three tiers: 'highly beats expectations', 'more or less meets expectations', or 'falls way short'. Be critical: if EPS beat expectations but it was achieved by reducing gross/operating margins, inflating via buybacks (share reduction), or one-time gains, you must classify it as 'falls way short' or 'more or less meets expectations'.
-5. Output your analysis in a strict JSON format matching the schema provided.`;
+5. Provide a "personal_evaluation" summarizing your overall qualitative assessment of the company's financial quality, key earnings indicators, red flags, and primary forward-looking risks.
+6. Output your analysis in a strict JSON format matching the schema provided.`;
 
     const jsonSchema = {
       type: 'object',
@@ -230,11 +232,21 @@ Instructions:
           type: 'string',
           enum: ['highly beats expectations', 'more or less meets expectations', 'falls way short'],
           description: 'Overall classification of how the filing compared to baseline consensus expectations.'
+        },
+        personal_evaluation: {
+          type: 'string',
+          description: 'A personal evaluation/synthesis by the LLM summarizing the company performance, key quality of earnings indicators, red flags, and major risks.'
         }
       },
-      required: ['actual_metrics', 'qoe_metrics', 'qualitative_analysis', 'qoe_score', 'expectation_classification'],
+      required: ['actual_metrics', 'qoe_metrics', 'qualitative_analysis', 'qoe_score', 'expectation_classification', 'personal_evaluation'],
       additionalProperties: false
     };
+
+    const userPrompt = `Here is the filing text for ${symbol}:\n\n${truncatedText}`;
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ];
 
     console.log(`[LLMEvaluator] Executing OpenAI analysis call for ${symbol} using ${this.model}...`);
     try {
@@ -242,10 +254,7 @@ Instructions:
         this.endpoint,
         {
           model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Here is the filing text for ${symbol}:\n\n${truncatedText}` }
-          ],
+          messages,
           response_format: {
             type: 'json_schema',
             json_schema: {
@@ -265,7 +274,12 @@ Instructions:
       );
 
       const responseContent = response.data.choices[0].message.content;
-      return JSON.parse(responseContent) as LLMAnalysisResult;
+      const parsedResult = JSON.parse(responseContent) as LLMAnalysisResult;
+      return {
+        result: parsedResult,
+        prompt: JSON.stringify(messages, null, 2),
+        responseRaw: responseContent
+      };
     } catch (error: any) {
       if (error.response) {
         console.error(`[LLMEvaluator] OpenAI API responded with status ${error.response.status}: ${JSON.stringify(error.response.data)}`);

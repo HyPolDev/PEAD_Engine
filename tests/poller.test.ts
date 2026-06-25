@@ -75,11 +75,16 @@ describe('Poller', () => {
     } as any);
 
     mockLlmEvaluatorInstance.evaluate.mockResolvedValue({
-      actual_metrics: { revenue: 110, gross_profit: 44, operating_income: 22, net_income: 12, eps: 1.2, operating_cash_flow: 15, capital_expenditures: 3, weighted_average_shares_diluted: 10000 },
-      qoe_metrics: { revenue_surprise_pct: 10, eps_surprise_pct: 20, gross_margin_pct: 0.4, gross_margin_expansion_bps: 100, operating_margin_pct: 0.2, operating_margin_expansion_bps: 100, fcf_to_net_income_ratio: 1.0, buyback_activity: { is_eps_inflated_by_buybacks: false, share_count_change_pct: 0.0 } },
-      qualitative_analysis: { red_flags: [], forward_guidance: { provided: false, revenue_guidance: 'N/A', eps_guidance: 'N/A', sentiment: 'N/A' } },
-      qoe_score: 5,
-      expectation_classification: 'highly beats expectations'
+      result: {
+        actual_metrics: { revenue: 110, gross_profit: 44, operating_income: 22, net_income: 12, eps: 1.2, operating_cash_flow: 15, capital_expenditures: 3, weighted_average_shares_diluted: 10000 },
+        qoe_metrics: { revenue_surprise_pct: 10, eps_surprise_pct: 20, gross_margin_pct: 0.4, gross_margin_expansion_bps: 100, operating_margin_pct: 0.2, operating_margin_expansion_bps: 100, fcf_to_net_income_ratio: 1.0, buyback_activity: { is_eps_inflated_by_buybacks: false, share_count_change_pct: 0.0 } },
+        qualitative_analysis: { red_flags: [], forward_guidance: { provided: false, revenue_guidance: 'N/A', eps_guidance: 'N/A', sentiment: 'N/A' } },
+        qoe_score: 5,
+        expectation_classification: 'highly beats expectations',
+        personal_evaluation: 'Test personal evaluation'
+      },
+      prompt: 'mock-prompt',
+      responseRaw: 'mock-response-raw'
     });
   });
 
@@ -93,7 +98,30 @@ describe('Poller', () => {
     const poller = new Poller(mockConfig, mockMapperInstance);
 
     const mockXml = '<feed>mock</feed>';
-    mockClientInstance.fetchFeed.mockResolvedValue(mockXml);
+    mockClientInstance.fetchFeed.mockImplementation(async (url: string) => {
+      if (url === mockConfig.secFeedUrl) {
+        return mockXml;
+      }
+      if (url.includes('1111') || url.includes('3333') || url.includes('4444')) {
+        const formType = url.includes('1111') ? '8-K' : (url.includes('3333') ? '10-K' : '8-K');
+        return `
+          <html>
+            <table class="tableFile">
+              <tr>
+                <td>1</td>
+                <td>Primary Document</td>
+                <td><a href="/Archives/edgar/data/1696558/main.htm">main.htm</a></td>
+                <td>${formType}</td>
+              </tr>
+            </table>
+          </html>
+        `;
+      }
+      if (url.includes('main.htm')) {
+        return '<html>actual report content</html>';
+      }
+      return '<html>landing fallback</html>';
+    });
 
     const parsedMockEntries: FilingEntry[] = [
       {
@@ -152,7 +180,12 @@ describe('Poller', () => {
     expect(emittedFilings).toHaveLength(1);
     expect(emittedFilings[0]).toHaveLength(2);
     expect(emittedFilings[0][0].id).toBe('1111');
+    expect(emittedFilings[0][0].link).toBe('https://www.sec.gov/Archives/edgar/data/1696558/main.htm');
+    expect(emittedFilings[0][0].personalEvaluation).toBe('Test personal evaluation');
+    expect(emittedFilings[0][0].llmPrompt).toBe('mock-prompt');
+    expect(emittedFilings[0][0].llmResponse).toBe('mock-response-raw');
     expect(emittedFilings[0][1].id).toBe('3333');
+    expect(emittedFilings[0][1].link).toBe('https://www.sec.gov/Archives/edgar/data/1696558/main.htm');
 
     // Verify they are saved to cache
     expect(fs.existsSync(testCachePath)).toBe(true);
